@@ -60,15 +60,15 @@ Email Sending has no such restriction and works on any domain or subdomain you v
 Then:
 
 ```bash
-export AM=https://dearagent.<your-subdomain>.workers.dev
+export DA=https://dearagent.<your-subdomain>.workers.dev
 export KEY=<your API_KEY>
 
 # 1. get an address
-curl -s -X POST $AM/inboxes -H "Authorization: Bearer $KEY" -d '{}'
+curl -s -X POST $DA/inboxes -H "Authorization: Bearer $KEY" -d '{}'
 # → { "id": "agent-k3m9x2pq@mail.example.com", ... }
 
 # 2. send an email to it, then read it
-curl -s "$AM/inboxes/agent-k3m9x2pq@mail.example.com/messages/latest" -H "Authorization: Bearer $KEY"
+curl -s "$DA/inboxes/agent-k3m9x2pq@mail.example.com/messages/latest" -H "Authorization: Bearer $KEY"
 ```
 
 ## Configuration
