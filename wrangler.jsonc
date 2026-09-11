@@ -1,0 +1,74 @@
+/**
+ * AgentMail — self-hosted email inboxes for AI agents.
+ * Docs: https://developers.cloudflare.com/workers/wrangler/configuration/
+ *
+ * Before deploying, replace the placeholder values marked REPLACE_ME.
+ * `npm run setup` walks through this interactively.
+ */
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "agentmail",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-08-22",
+	"compatibility_flags": ["nodejs_compat"],
+	"observability": {
+		"enabled": true,
+		"logs": { "enabled": true }
+	},
+	// Bindings ------------------------------------------------------------
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "agentmail",
+			"database_id": "REPLACE_ME_D1_DATABASE_ID",
+			"migrations_dir": "migrations"
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "ATTACHMENTS",
+			"bucket_name": "agentmail-attachments"
+		}
+	],
+	"send_email": [
+		{
+			"name": "EMAIL"
+			// Uncomment for local dev to send real email through `wrangler dev`:
+			// "remote": true
+		}
+	],
+	"ai": {
+		"binding": "AI"
+	},
+	// Daily retention purge (see RETENTION_DAYS below).
+	"triggers": {
+		"crons": ["17 3 * * *"]
+	},
+	// Configuration -------------------------------------------------------
+	// Secrets (set with `wrangler secret put <NAME>`, never in this file):
+	//   API_KEY          required — bearer token for the REST API and MCP endpoint
+	//   OPENAI_API_KEY   optional — only when AI_PROVIDER=openai
+	"vars": {
+		// Comma-separated list of domains this Worker accepts mail for and may send from.
+		"EMAIL_DOMAINS": "REPLACE_ME.example.com",
+		// Days to keep messages. 0 = keep forever.
+		"RETENTION_DAYS": "30",
+		// Auto-create an inbox row for any address at EMAIL_DOMAINS ("true"), or
+		// reject mail for addresses that were not created via POST /inboxes ("false").
+		"ALLOW_UNKNOWN_INBOX": "true",
+		// Keep the raw MIME in R2 so GET /inboxes/:id/messages/:mid/raw works.
+		"STORE_RAW": "false",
+		// Attachments larger than this are recorded (metadata) but their bytes are not stored.
+		"MAX_ATTACHMENT_BYTES": "10485760",
+		// "workers-ai" (default, no key needed) or "openai" (requires OPENAI_API_KEY secret).
+		"AI_PROVIDER": "workers-ai",
+		// Optional model override. Defaults: @cf/meta/llama-3.3-70b-instruct-fp8-fast / gpt-5-mini
+		"AI_MODEL": "",
+		// Display name used on outbound mail when the request does not set one.
+		"DEFAULT_FROM_NAME": "",
+		// Per-attempt webhook delivery timeout.
+		"WEBHOOK_TIMEOUT_MS": "10000"
+	}
+	// Optional: serve the API on your own hostname.
+	// "routes": [{ "pattern": "mail-api.example.com", "custom_domain": true }]
+}

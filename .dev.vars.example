@@ -1,0 +1,8 @@
+# Copy to .dev.vars for `wrangler dev`. Never commit .dev.vars.
+# In production set these with `wrangler secret put <NAME>`.
+
+# Required. Bearer token for the REST API and the /mcp endpoint.
+API_KEY=change-me-to-a-long-random-string
+
+# Optional. Only used when AI_PROVIDER=openai in wrangler.jsonc.
+# OPENAI_API_KEY=sk-...

@@ -1,0 +1,27 @@
+From: Alice Example <alice@example.org>
+To: agent@mail.example.com
+Subject: Your verification code
+Date: Thu, 11 Sep 2026 07:30:00 +0000
+Message-ID: <sample-0001@example.org>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="----=_Part_sample"
+
+------=_Part_sample
+Content-Type: text/plain; charset=utf-8
+
+Hi,
+
+Your verification code is 493021. It expires in 10 minutes.
+
+Or click: https://example.org/verify?token=abc123
+
+------=_Part_sample
+Content-Type: text/html; charset=utf-8
+
+<html><body>
+<p>Hi,</p>
+<p>Your verification code is <strong>493021</strong>. It expires in 10 minutes.</p>
+<p>Or <a href="https://example.org/verify?token=abc123">click here</a>.</p>
+</body></html>
+
+------=_Part_sample--

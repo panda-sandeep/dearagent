@@ -1,0 +1,31 @@
+{
+  "name": "agentmail",
+  "version": "0.1.0",
+  "description": "Self-hosted email inboxes for AI agents on Cloudflare Workers. Receive, read, reply, send, webhooks, MCP.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "cf-typegen": "wrangler types",
+    "db:migrate:local": "wrangler d1 migrations apply agentmail --local",
+    "db:migrate": "wrangler d1 migrations apply agentmail --remote",
+    "setup": "bash scripts/setup.sh"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.0.0",
+    "hono": "^4.13.7",
+    "postal-mime": "^3.0.0",
+    "zod": "^4.6.2"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.22.0",
+    "typescript": "^5.9.0",
+    "vitest": "^4.1.0",
+    "wrangler": "^4.131.0"
+  }
+}
