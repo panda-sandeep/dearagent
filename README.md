@@ -1,10 +1,44 @@
+<p align="center">
+  <a href="https://dearagent.sh"><img src="docs/banner.png" alt="dearagent.sh — self-hosted email inboxes for AI agents" width="800"></a>
+</p>
+
+<p align="center">
+  <a href="https://dearagent.sh/#try"><b>Try it live</b></a> ·
+  <a href="https://dearagent.sh">Website</a> ·
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#api">API</a> ·
+  <a href="#mcp">MCP</a> ·
+  <a href="skills/dearagent/SKILL.md">Agent skill</a>
+</p>
+
+<p align="center">
+  <a href="https://developers.cloudflare.com/workers/"><img src="https://img.shields.io/badge/runs%20on-Cloudflare%20Workers-171512?style=flat-square" alt="Cloudflare Workers"></a>
+  <a href="https://github.com/panda-sandeep/dearagent/stargazers"><img src="https://img.shields.io/github/stars/panda-sandeep/dearagent?style=flat-square&color=171512" alt="GitHub stars"></a>
+</p>
+
 # DearAgent
 
-Self-hosted email inboxes for AI agents, running entirely on your Cloudflare account.
+**Your agent needs an email address.** DearAgent gives every agent its own inbox, running entirely on your Cloudflare account. Receive mail, wait for the verification code, reply in thread, send new mail, and get a webhook when something arrives. One Worker, one repo, no servers.
+
+It is the open-source, self-hosted alternative to [AgentMail](https://www.agentmail.to/): the same idea, an email inbox API for AI agents, run on your own infrastructure for the cost of a Workers plan.
 
 > **Experimental.** DearAgent is early software. It works end to end, but it has not had an in-depth audit, the API may still change, and things may break. Review the code and run your own audit before pointing it at anything sensitive or exposing it to untrusted agents.
 
-Give every agent its own address. Receive mail, read it over a REST API or MCP, reply in-thread, send new mail, and get webhooks when something arrives. One Worker, one repo, no servers.
+## What it looks like from the agent
+
+```
+> create_inbox {}
+✓ agent-k3m9x2pq@mail.example.com
+
+# hand the address to the signup form
+
+> wait_for_message { inbox: "agent-k3m9x2pq@mail.example.com", timeout: 25 }
+✓ from: Pied Piper <no-reply@piedpiper.example>
+  subject: Your verification code
+  text: "Your code is 493021. It expires in 10 minutes."
+```
+
+The same operations exist over REST. Under the hood:
 
 ```
 Inbound   *@mail.example.com ──► Email Routing ──► Worker email() ──► D1 (+ R2 for attachments) ──► webhooks
@@ -12,7 +46,9 @@ Outbound  POST /inboxes/:id/messages(/…/reply) ──► Worker ──► Clou
 Agents    REST (Bearer key)  ·  MCP at /mcp
 ```
 
-Inspired by [agentmail.to](https://www.agentmail.to/); built so you can run the same idea yourself for the cost of a Workers plan.
+## Try it now
+
+You do not need to deploy anything to see it work. [dearagent.sh](https://dearagent.sh/#try) creates a real inbox for you on the public demo instance when the page loads. Send it an email from anywhere and watch it arrive on the page. Demo addresses live for fifteen minutes and demo mail is not kept.
 
 ## Features
 
@@ -25,9 +61,23 @@ Inspired by [agentmail.to](https://www.agentmail.to/); built so you can run the 
 - **MCP server** at `/mcp` so Claude Code, Cursor, or any MCP client can use an inbox as a tool, including `wait_for_message` to block until mail arrives.
 - **Retention.** Daily purge after `RETENTION_DAYS`, plus per-address TTLs (`signup.ttl.600@…` expires after 600 s).
 
-## Quick start
+## Why self-host
 
-Prerequisites: a Cloudflare account with an apex domain you can dedicate to email (see "Which domains work" below), Node 20+, and `npx wrangler login` done.
+| | Hosted inbox APIs | DearAgent |
+|---|---|---|
+| Where mail lives | Their cloud | Your Cloudflare account: D1 for mail, R2 for attachments |
+| What it costs | A plan with per-inbox or per-message limits | Your Workers bill. Receiving runs on the free plan |
+| Source | Closed | One repo you can read, tests that run in the real Workers runtime |
+| Tenancy | Multi-tenant, per-agent keys | Single-tenant, one API key. Put it behind your own auth for per-agent scoping |
+
+## Requirements
+
+- A Cloudflare account.
+- An apex domain that receives no mail today, dedicated to Cloudflare Email Routing. See [Which domains work](#which-domains-work).
+- Workers Paid, only if you send. Receiving is free.
+- Node 20+ and `npx wrangler login` done.
+
+## Quick start
 
 ```bash
 git clone https://github.com/panda-sandeep/dearagent && cd dearagent
@@ -243,9 +293,18 @@ src/cron.ts           retention purge
 migrations/           D1 schema
 ```
 
+## Security
+
+- One bearer key grants full access to every inbox on the server. Treat it like a database password: set it with `wrangler secret put`, never commit it, rotate it if it leaks.
+- The Worker has no per-agent scoping. If several agents or people share a deployment, put it behind [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/policies/access/) or your own gateway.
+- Webhooks are HMAC-signed. Verify `X-DearAgent-Signature` before trusting a payload.
+- Anything an agent can read from an inbox, a sender can put there. Treat inbound mail as untrusted input to the agent.
+
+Found a vulnerability? Please report it privately through GitHub's **Security → Report a vulnerability** on this repository rather than opening a public issue.
+
 ## Contributing
 
-Pull requests are welcome. By submitting a contribution you agree to the [Contributor License Agreement](CLA.md), which lets the project also be offered under licenses other than the AGPL.
+Pull requests are welcome. Run `npm test` and `npm run typecheck` before opening one. By submitting a contribution you agree to the [Contributor License Agreement](CLA.md), which lets the project also be offered under licenses other than the AGPL.
 
 ## License
 
