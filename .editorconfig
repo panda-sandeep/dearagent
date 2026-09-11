@@ -10,3 +10,8 @@ insert_final_newline = true
 [*.{md,yml,yaml}]
 indent_style = space
 indent_size = 2
+
+# Raw email fixtures must stay byte-exact.
+[*.eml]
+trim_trailing_whitespace = false
+insert_final_newline = false

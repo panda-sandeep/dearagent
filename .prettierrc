@@ -2,5 +2,6 @@
 	"printWidth": 160,
 	"singleQuote": true,
 	"semi": true,
-	"useTabs": true
+	"useTabs": true,
+	"endOfLine": "lf"
 }

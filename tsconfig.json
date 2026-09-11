@@ -1,3 +1,4 @@
+// Worker sources only. Tests have their own config in test/tsconfig.json.
 {
 	"compilerOptions": {
 		"target": "es2022",
