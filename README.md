@@ -28,7 +28,7 @@ Inspired by [agentmail.to](https://www.agentmail.to/); built so you can run the 
 Prerequisites: a Cloudflare account with a zone you can use for email (e.g. `mail.example.com` as a subdomain zone or a dedicated domain), Node 20+, and `npx wrangler login` done.
 
 ```bash
-git clone https://github.com/<you>/dearagent && cd dearagent
+git clone https://github.com/panda-sandeep/dearagent && cd dearagent
 npm install
 npm run setup          # interactive: D1, R2, secrets, Email Routing/Sending, deploy, catch-all rule
 ```

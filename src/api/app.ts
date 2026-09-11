@@ -71,7 +71,7 @@ export function createApp() {
 	app.get('/', (c) =>
 		c.json({
 			name: 'dearagent',
-			docs: 'https://github.com/sandeepvpanda/dearagent',
+			docs: 'https://github.com/panda-sandeep/dearagent',
 			endpoints: ['/health', '/auth/me', '/inboxes', '/webhooks', '/mcp'],
 		}),
 	);
