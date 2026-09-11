@@ -4,6 +4,14 @@
   "description": "Self-hosted email inboxes for AI agents on Cloudflare Workers. Receive, read, reply, send, webhooks, MCP.",
   "license": "AGPL-3.0-only",
   "author": "Sandeep Panda",
+  "homepage": "https://dearagent.sh",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/panda-sandeep/dearagent.git"
+  },
+  "bugs": {
+    "url": "https://github.com/panda-sandeep/dearagent/issues"
+  },
   "private": true,
   "type": "module",
   "scripts": {
