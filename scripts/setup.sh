@@ -52,11 +52,15 @@ fi
 step "D1 database"
 if grep -q 'REPLACE_ME_D1_DATABASE_ID' wrangler.jsonc; then
   OUT="$(npx wrangler d1 create dearagent 2>&1 || true)"
-  echo "$OUT"
   ID="$(echo "$OUT" | grep -Eo '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1 || true)"
-  if [[ -z "$ID" ]]; then
-    # Database may already exist; look it up.
+  if [[ -n "$ID" ]]; then
+    echo "Created D1 database dearagent."
+  elif echo "$OUT" | grep -qi "already exists"; then
+    # Reuse the existing database (e.g. re-running setup after regenerating wrangler.jsonc).
     ID="$(npx wrangler d1 list --json 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const r=JSON.parse(s).find(d=>d.name==="dearagent");console.log(r?r.uuid:"")})')"
+    [[ -n "$ID" ]] && echo "D1 database dearagent already exists; reusing it."
+  else
+    echo "$OUT"
   fi
   [[ -n "$ID" ]] || { echo "Could not determine the D1 database id. Create it manually and paste the id into wrangler.jsonc."; exit 1; }
   sed -i.bak "s/REPLACE_ME_D1_DATABASE_ID/${ID}/" wrangler.jsonc && rm -f wrangler.jsonc.bak
@@ -155,9 +159,19 @@ fi
 
 step "Deploying the Worker"
 # `addresses` in wrangler.jsonc makes wrangler create the catch-all Email Routing rule for this Worker
-# as part of the deploy (it prints an "Email Routing plan" and applies it).
-DEPLOY_OUT="$(npx wrangler deploy 2>&1 | tee /dev/tty)"
-URL="$(echo "$DEPLOY_OUT" | grep -Eo 'https://[A-Za-z0-9.-]+\.workers\.dev' | head -1 || true)"
+# as part of the deploy (it prints an "Email Routing plan" and applies it). wrangler asks for
+# confirmation before deleting routing rules (e.g. after a domain change) and cannot prompt when its
+# output is piped, so run it in a pseudo-terminal via `script`, which keeps prompts working while
+# recording the output so the Worker URL can be picked out afterwards.
+DEPLOY_LOG="$(mktemp)"
+if [[ "$(uname)" == "Darwin" ]]; then
+  script -q "$DEPLOY_LOG" npx wrangler deploy
+else
+  script -q -e -c "npx wrangler deploy" "$DEPLOY_LOG"
+fi
+URL="$(tr -d '\r' < "$DEPLOY_LOG" | sed 's/\x1b\[[0-9;]*[A-Za-z]//g' | grep -Eo 'https://[A-Za-z0-9.-]+\.workers\.dev' | head -1 || true)"
+rm -f "$DEPLOY_LOG"
+URL="${URL:-https://dearagent.<your-subdomain>.workers.dev}"
 
 if [[ "${ROUTING_BLOCKED:-0}" != "1" && "$SUBDOMAIN_MODE" != "1" ]]; then
   step "Catch-all routing rule → Worker"
@@ -180,13 +194,13 @@ elif [[ "$SUBDOMAIN_MODE" == "1" ]]; then
 fi
 cat <<EOF
 
-Your DearAgent server is live${URL:+ at ${URL}}.
+Your DearAgent server is live at ${URL}.
 
 Try it:
-  curl -H "Authorization: Bearer \$API_KEY" ${URL:-https://dearagent.<you>.workers.dev}/inboxes -X POST -d '{}'
+  curl -H "Authorization: Bearer \$API_KEY" ${URL}/inboxes -X POST -d '{}'
   # then send an email to the returned address and:
-  curl -H "Authorization: Bearer \$API_KEY" "${URL:-https://dearagent.<you>.workers.dev}/inboxes/<address>/messages/latest"
+  curl -H "Authorization: Bearer \$API_KEY" "${URL}/inboxes/<address>/messages/latest"
 
 MCP for Claude Code:
-  claude mcp add --transport http dearagent ${URL:-https://dearagent.<you>.workers.dev}/mcp --header "Authorization: Bearer \$API_KEY"
+  claude mcp add --transport http dearagent ${URL}/mcp --header "Authorization: Bearer \$API_KEY"
 EOF
