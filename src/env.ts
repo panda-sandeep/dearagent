@@ -9,15 +9,11 @@ declare global {
 	interface Env {
 		/** Bearer token for the REST API and MCP endpoint. `wrangler secret put API_KEY`. */
 		API_KEY?: string;
-		/** Only required when AI_PROVIDER=openai. `wrangler secret put OPENAI_API_KEY`. */
-		OPENAI_API_KEY?: string;
 	}
 }
 
 /** The only part of ExecutionContext this codebase needs; lets Hono's narrower context type flow through. */
 export type WaitUntil = { waitUntil(promise: Promise<unknown>): void };
-
-export type AiProvider = 'workers-ai' | 'openai';
 
 export interface Config {
 	/** Lowercased domains this deployment accepts mail for and sends from. */
@@ -27,9 +23,6 @@ export interface Config {
 	allowUnknownInbox: boolean;
 	storeRaw: boolean;
 	maxAttachmentBytes: number;
-	aiProvider: AiProvider;
-	/** Empty string = provider default. */
-	aiModel: string;
 	defaultFromName: string;
 	webhookTimeoutMs: number;
 }
@@ -57,19 +50,12 @@ export function getConfig(env: Env): Config {
 		throw new ConfigError('EMAIL_DOMAINS is not configured. Set it in wrangler.jsonc to the domain(s) you enabled Email Routing for.');
 	}
 
-	const provider = String(env.AI_PROVIDER ?? 'workers-ai').trim().toLowerCase();
-	if (provider !== 'workers-ai' && provider !== 'openai') {
-		throw new ConfigError(`AI_PROVIDER must be "workers-ai" or "openai", got "${provider}"`);
-	}
-
 	return {
 		domains,
 		retentionDays: int(env.RETENTION_DAYS, 30),
 		allowUnknownInbox: bool(env.ALLOW_UNKNOWN_INBOX, true),
 		storeRaw: bool(env.STORE_RAW, false),
 		maxAttachmentBytes: int(env.MAX_ATTACHMENT_BYTES, 10 * 1024 * 1024),
-		aiProvider: provider,
-		aiModel: String(env.AI_MODEL ?? '').trim(),
 		defaultFromName: String(env.DEFAULT_FROM_NAME ?? '').trim(),
 		webhookTimeoutMs: int(env.WEBHOOK_TIMEOUT_MS, 10_000, 1000),
 	};

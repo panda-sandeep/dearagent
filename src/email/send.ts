@@ -33,6 +33,62 @@ export interface ComposeInput {
 const MAX_RECIPIENTS = 50;
 const MAX_MESSAGE_BYTES = 25 * 1024 * 1024;
 
+export function escapeHtml(s: string): string {
+	return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/** Minimal text → HTML so every outbound message is multipart/alternative (better for spam filters and clients). */
+export function textToHtml(text: string): string {
+	const paragraphs = text.replace(/\r\n/g, '\n').split(/\n{2,}/);
+	const body = paragraphs.map((p) => `<p>${escapeHtml(p).replace(/\n/g, '<br>')}</p>`).join('\n');
+	return `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:14px;line-height:1.5">${body}</div>`;
+}
+
+/** Ensure both text and html bodies exist, deriving one from the other when only one is given. */
+export function completeBodies(text?: string | null, html?: string | null): { text: string | null; html: string | null } {
+	if (text && !html) return { text, html: textToHtml(text) };
+	if (html && !text) return { text: htmlToText(html), html };
+	return { text: text ?? null, html: html ?? null };
+}
+
+function htmlToText(html: string): string {
+	return html
+		.replace(/<style[\s\S]*?<\/style>/gi, '')
+		.replace(/<script[\s\S]*?<\/script>/gi, '')
+		.replace(/<br\s*\/?>/gi, '\n')
+		.replace(/<\/(p|div|li|tr|h\d|blockquote)>/gi, '\n')
+		.replace(/<a\s[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, '$2 ($1)')
+		.replace(/<[^>]+>/g, '')
+		.replace(/&nbsp;/g, ' ')
+		.replace(/&amp;/g, '&')
+		.replace(/&lt;/g, '<')
+		.replace(/&gt;/g, '>')
+		.replace(/&quot;/g, '"')
+		.replace(/&#39;/g, "'")
+		.replace(/[ \t]+\n/g, '\n')
+		.replace(/\n{3,}/g, '\n\n')
+		.trim();
+}
+
+function attributionLine(original: MessageRow): string {
+	const who = original.from_name ? `${original.from_name} <${original.from_address}>` : (original.from_address ?? 'unknown sender');
+	const when = new Date(original.received_at).toUTCString();
+	return `On ${when}, ${who} wrote:`;
+}
+
+/** Append the original message below a reply, the way mail clients do. */
+export function quoteOriginal(reply: { text: string | null; html: string | null }, original: MessageRow): { text: string | null; html: string | null } {
+	const attribution = attributionLine(original);
+	const origText = original.text ?? (original.html ? htmlToText(original.html) : '');
+	const text = reply.text != null ? `${reply.text}\n\n${attribution}\n${origText.split('\n').map((l) => `> ${l}`).join('\n')}` : null;
+	const origHtml = original.html ?? `<pre style="white-space:pre-wrap;font:inherit">${escapeHtml(origText)}</pre>`;
+	const html =
+		reply.html != null
+			? `${reply.html}\n<br><div class="gmail_quote"><div dir="ltr" style="color:#555">${escapeHtml(attribution)}</div><blockquote style="margin:0 0 0 .8ex;border-left:1px solid #ccc;padding-left:1ex">${origHtml}</blockquote></div>`
+			: null;
+	return { text, html };
+}
+
 function decodeBase64(b64: string): ArrayBuffer {
 	const clean = b64.replace(/^data:[^,]*,/, '').replace(/\s+/g, '');
 	const bin = atob(clean);
@@ -60,7 +116,7 @@ function validateRecipients(...lists: Mailbox[][]): void {
 async function deliver(env: Env, builder: EmailMessageBuilder): Promise<string> {
 	try {
 		const result = await env.EMAIL.send(builder);
-		return normalizeMessageId(result.messageId) ?? `<${crypto.randomUUID()}@agentmail.local>`;
+		return normalizeMessageId(result.messageId) ?? `<${crypto.randomUUID()}@dearagent.local>`;
 	} catch (error) {
 		const err = error as { code?: string; message?: string };
 		const code = err?.code ?? 'E_SEND_FAILED';
@@ -188,7 +244,8 @@ export async function composeMessage(env: Env, config: Config, inbox: InboxRow, 
 	const bcc = uniqueMailboxes(input.bcc ?? []);
 	validateRecipients(to, cc, bcc);
 	ensureBody(input.text, input.html);
-	if (approxSize(input) > MAX_MESSAGE_BYTES) throw ApiError.tooLarge('Message exceeds 25 MiB');
+	const bodies = completeBodies(input.text, input.html);
+	if (approxSize({ ...bodies, attachments: input.attachments }) > MAX_MESSAGE_BYTES) throw ApiError.tooLarge('Message exceeds 25 MiB');
 	const from = fromMailbox(inbox, config, input.fromName);
 
 	const builder: EmailMessageBuilder = {
@@ -197,8 +254,8 @@ export async function composeMessage(env: Env, config: Config, inbox: InboxRow, 
 		...(cc.length ? { cc: cc.map(toEmailAddress) } : {}),
 		...(bcc.length ? { bcc: bcc.map(toEmailAddress) } : {}),
 		subject: input.subject,
-		...(input.text ? { text: input.text } : {}),
-		...(input.html ? { html: input.html } : {}),
+		...(bodies.text ? { text: bodies.text } : {}),
+		...(bodies.html ? { html: bodies.html } : {}),
 		...(input.replyTo ? { replyTo: input.replyTo } : {}),
 		...(input.headers && Object.keys(input.headers).length ? { headers: input.headers } : {}),
 		...(input.attachments?.length ? { attachments: input.attachments.map(toBindingAttachment) } : {}),
@@ -217,9 +274,9 @@ export async function composeMessage(env: Env, config: Config, inbox: InboxRow, 
 		bcc,
 		replyTo: input.replyTo ?? null,
 		subject: input.subject,
-		text: input.text ?? null,
-		html: input.html ?? null,
-		sizeBytes: approxSize(input),
+		text: bodies.text,
+		html: bodies.html,
+		sizeBytes: approxSize({ ...bodies, attachments: input.attachments }),
 		attachments: input.attachments ?? [],
 		labels: input.labels ?? [],
 	});
@@ -228,6 +285,8 @@ export async function composeMessage(env: Env, config: Config, inbox: InboxRow, 
 export interface ReplyInput {
 	text?: string | null;
 	html?: string | null;
+	/** Append the original message below the reply body. Default true. */
+	quoteOriginal?: boolean;
 	subject?: string | null;
 	fromName?: string | null;
 	attachments?: OutgoingAttachment[];
@@ -247,7 +306,9 @@ export async function replyToMessage(
 	opts: { replyAll: boolean },
 ): Promise<{ messageId: string; threadId: string }> {
 	ensureBody(input.text, input.html);
-	if (approxSize(input) > MAX_MESSAGE_BYTES) throw ApiError.tooLarge('Message exceeds 25 MiB');
+	let bodies = completeBodies(input.text, input.html);
+	if (input.quoteOriginal !== false) bodies = quoteOriginal(bodies, original);
+	if (approxSize({ ...bodies, attachments: input.attachments }) > MAX_MESSAGE_BYTES) throw ApiError.tooLarge('Message exceeds 25 MiB');
 	const from = fromMailbox(inbox, config, input.fromName);
 
 	// Primary recipient: Reply-To if set, else the original sender. For outbound originals, reply to the original recipients.
@@ -287,8 +348,8 @@ export async function replyToMessage(
 		...(cc.length ? { cc: cc.map(toEmailAddress) } : {}),
 		...(bcc.length ? { bcc: bcc.map(toEmailAddress) } : {}),
 		subject,
-		...(input.text ? { text: input.text } : {}),
-		...(input.html ? { html: input.html } : {}),
+		...(bodies.text ? { text: bodies.text } : {}),
+		...(bodies.html ? { html: bodies.html } : {}),
 		...(Object.keys(headers).length ? { headers } : {}),
 		...(input.attachments?.length ? { attachments: input.attachments.map(toBindingAttachment) } : {}),
 	};
@@ -306,9 +367,9 @@ export async function replyToMessage(
 		bcc,
 		replyTo: null,
 		subject,
-		text: input.text ?? null,
-		html: input.html ?? null,
-		sizeBytes: approxSize(input),
+		text: bodies.text,
+		html: bodies.html,
+		sizeBytes: approxSize({ ...bodies, attachments: input.attachments }),
 		attachments: input.attachments ?? [],
 		labels: input.labels ?? [],
 	});
@@ -351,13 +412,12 @@ export async function forwardMessage(env: Env, config: Config, inbox: InboxRow, 
 			.join(', ')}`,
 		'',
 	].join('\n');
-	const intro = input.text ?? '';
-	const text = `${intro ? `${intro}\n\n` : ''}${header}\n${original.text ?? ''}`.trimEnd();
-	const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-	const html =
-		input.html || original.html
-			? `${input.html ?? (intro ? `<p>${escape(intro).replace(/\n/g, '<br>')}</p>` : '')}<blockquote style="border-left:2px solid #ccc;padding-left:8px;margin:8px 0"><pre style="white-space:pre-wrap;font:inherit">${escape(header)}</pre>${original.html ?? `<pre style="white-space:pre-wrap;font:inherit">${escape(original.text ?? '')}</pre>`}</blockquote>`
-			: null;
+	const intro = input.text ?? (input.html ? htmlToText(input.html) : '');
+	const origText = original.text ?? (original.html ? htmlToText(original.html) : '');
+	const text = `${intro ? `${intro}\n\n` : ''}${header}\n${origText}`.trimEnd();
+	const introHtml = input.html ?? (intro ? textToHtml(intro) : '');
+	const origHtml = original.html ?? `<pre style="white-space:pre-wrap;font:inherit">${escapeHtml(origText)}</pre>`;
+	const html = `${introHtml}<br><div class="gmail_quote"><pre style="white-space:pre-wrap;font:inherit;color:#555">${escapeHtml(header)}</pre><blockquote style="margin:0 0 0 .8ex;border-left:1px solid #ccc;padding-left:1ex">${origHtml}</blockquote></div>`;
 
 	const attachments: OutgoingAttachment[] = [];
 	if (input.includeAttachments !== false) {
@@ -384,7 +444,7 @@ export async function forwardMessage(env: Env, config: Config, inbox: InboxRow, 
 		...(bcc.length ? { bcc: bcc.map(toEmailAddress) } : {}),
 		subject,
 		text,
-		...(html ? { html } : {}),
+		html,
 		...(attachments.length ? { attachments: attachments.map(toBindingAttachment) } : {}),
 	};
 	const messageIdHeader = await deliver(env, builder);

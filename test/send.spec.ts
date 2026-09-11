@@ -33,6 +33,9 @@ describe('sending', () => {
 		expect(sent.cc).toEqual(['carol@example.org']);
 		expect(sent.subject).toBe('Hi');
 		expect(sent.text).toBe('Hello Bob');
+		// text-only input still goes out multipart: an HTML part is derived.
+		expect(sent.html).toContain('<p>Hello Bob</p>');
+		expect(body.html).toContain('<p>Hello Bob</p>');
 
 		const thread = await apiJson(`/inboxes/${enc}/threads/${body.thread_id}`);
 		expect(thread.body.message_count).toBe(1);
@@ -70,6 +73,37 @@ describe('sending', () => {
 		expect(thread.body.messages.map((m: any) => m.direction)).toEqual(['inbound', 'outbound']);
 	});
 
+	it('quotes the original below the reply in both text and html', async () => {
+		const original = await ingest(
+			buildEml({ from: 'Alice <alice@sender.test>', subject: 'Question', text: 'Line one\nLine two', html: '<p>Line one<br>Line two</p>' }),
+		);
+		const { body } = await apiJson(`/inboxes/${enc}/messages/${original.messageId}/reply`, { method: 'POST', json: { text: 'Answer' } });
+		const sent = mock.sent[0];
+		expect(sent.text).toMatch(/^Answer\n\nOn .+, Alice <alice@sender.test> wrote:\n> Line one\n> Line two/);
+		expect(sent.html).toContain('<p>Answer</p>');
+		expect(sent.html).toContain('class="gmail_quote"');
+		expect(sent.html).toContain('<p>Line one<br>Line two</p>');
+		expect(sent.html).toContain('Alice &lt;alice@sender.test&gt; wrote:');
+		// Stored copy matches what was sent.
+		expect(body.text).toBe(sent.text);
+		expect(body.html).toBe(sent.html);
+	});
+
+	it('omits the quote when quote_original is false, and derives text from html-only replies', async () => {
+		const original = await ingest(buildEml({ text: 'Original' }));
+		const plain = await apiJson(`/inboxes/${enc}/messages/${original.messageId}/reply`, { method: 'POST', json: { text: 'Bare', quote_original: false } });
+		expect(plain.body.text).toBe('Bare');
+		expect(plain.body.html).toBe(mock.sent[0].html);
+		expect(mock.sent[0].html).not.toContain('gmail_quote');
+
+		await apiJson(`/inboxes/${enc}/messages/${original.messageId}/reply`, {
+			method: 'POST',
+			json: { html: '<p>Rich <a href="https://x.test">link</a></p>', quote_original: false },
+		});
+		expect(mock.sent[1].text).toBe('Rich link (https://x.test)');
+		expect(mock.sent[1].html).toBe('<p>Rich <a href="https://x.test">link</a></p>');
+	});
+
 	it('reply-all copies other recipients but not the inbox itself; honours Reply-To', async () => {
 		const original = await ingest(buildEml({ from: 'alice@sender.test', replyTo: 'alice-reply@sender.test', to: `${INBOX}, bob@sender.test`, cc: 'carol@sender.test' }));
 		const { body } = await apiJson(`/inboxes/${enc}/messages/${original.messageId}/reply-all`, { method: 'POST', json: { text: 'All' } });
@@ -88,6 +122,8 @@ describe('sending', () => {
 		expect(body.text).toContain('FYI');
 		expect(body.text).toContain('---------- Forwarded message ----------');
 		expect(body.text).toContain('See attached');
+		expect(body.html).toContain('Forwarded message');
+		expect(body.html).toContain('<p>FYI</p>');
 		expect(body.attachments).toHaveLength(1);
 
 		const sent = mock.sent[0];

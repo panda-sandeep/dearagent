@@ -1,4 +1,4 @@
--- AgentMail initial schema.
+-- DearAgent initial schema.
 -- All timestamps are integer epoch milliseconds (UTC).
 
 CREATE TABLE IF NOT EXISTS inboxes (

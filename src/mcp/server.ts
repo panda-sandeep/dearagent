@@ -3,7 +3,7 @@
  * Every tool is a thin wrapper over the same functions the REST API uses.
  *
  * Connect from Claude Code:
- *   claude mcp add --transport http agentmail https://<worker>/mcp --header "Authorization: Bearer <API_KEY>"
+ *   claude mcp add --transport http dearagent https://<worker>/mcp --header "Authorization: Bearer <API_KEY>"
  */
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -14,14 +14,12 @@ import type { Config, WaitUntil } from '../env';
 import { getInbox, listInboxes, upsertInbox } from '../db/inboxes';
 import { getThread, listThreads } from '../db/threads';
 import { getMessage, latestMessage, listMessages, listThreadMessages, searchMessages, updateMessage } from '../db/messages';
-import { listAttachments, listAttachmentsForMessages } from '../db/attachments';
+import { getAttachment, listAttachments, listAttachmentsForMessages } from '../db/attachments';
 import { createWebhook, listWebhooks } from '../db/webhooks';
 import { inboxJson, messageJson, threadJson, webhookJson } from '../api/serialize';
 import { resolveNewInboxAddress } from '../api/inboxes';
 import { afterSend, waitForMessage } from '../api/messages';
-import { pickMessage } from '../api/extract';
 import { composeMessage, replyToMessage, forwardMessage } from '../email/send';
-import { extractFromMessage } from '../ai/extract';
 import { mailboxListSchema, attachmentSchema, parseSince } from '../api/schemas';
 import type { InboxRow } from '../db/schema';
 
@@ -42,6 +40,20 @@ async function requireInbox(db: D1Database, id: string): Promise<InboxRow> {
 	return inbox;
 }
 
+/** Hard ceiling for attachment bytes returned inline through MCP (base64 inflates by ~33%). */
+const MAX_MCP_ATTACHMENT_BYTES = 4 * 1024 * 1024;
+
+function isTextMime(mime: string): boolean {
+	const type = mime.split(';')[0].trim().toLowerCase();
+	return type.startsWith('text/') || /^application\/(json|xml|csv|x-ndjson|javascript|x-yaml|yaml)$/.test(type) || type.endsWith('+json') || type.endsWith('+xml');
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+	let binary = '';
+	for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+	return btoa(binary);
+}
+
 const inboxIdArg = z.string().describe('Inbox id, which is the lowercased email address, e.g. "agent-x7k2@mail.example.com"');
 const sinceArg = z
 	.union([z.number(), z.string()])
@@ -49,7 +61,7 @@ const sinceArg = z
 	.describe('Only messages received after this instant. Epoch milliseconds or ISO-8601. Tip: pass received_at_ms of the last message you saw.');
 
 export function buildMcpServer(env: Env, config: Config, ctx: WaitUntil): McpServer {
-	const server = new McpServer({ name: 'agentmail', version: '0.1.0' });
+	const server = new McpServer({ name: 'dearagent', version: '0.1.0' });
 	const db = env.DB;
 
 	const wrap =
@@ -159,6 +171,40 @@ export function buildMcpServer(env: Env, config: Config, ctx: WaitUntil): McpSer
 	);
 
 	server.registerTool(
+		'get_attachment',
+		{
+			description:
+				'Download one attachment from a message. Text-like attachments (text/*, JSON, XML, CSV) are returned as `text`; everything else as `content_base64`. Set `encoding` to "base64" to force raw bytes. Attachments larger than max_bytes (default 4 MB) are refused; use the REST attachment URL for those.',
+			inputSchema: z.object({
+				inbox_id: inboxIdArg,
+				message_id: z.string(),
+				attachment_id: z.string().describe('Attachment id from get_message / list_messages, e.g. "att_..."'),
+				encoding: z.enum(['auto', 'text', 'base64']).optional().describe('auto (default): text for text-like MIME types, base64 otherwise.'),
+				max_bytes: z.number().int().min(1).max(MAX_MCP_ATTACHMENT_BYTES).optional(),
+			}),
+		},
+		wrap(async ({ inbox_id, message_id, attachment_id, encoding = 'auto', max_bytes = MAX_MCP_ATTACHMENT_BYTES }) => {
+			const inbox = await requireInbox(db, inbox_id);
+			const row = await getMessage(db, inbox.id, message_id);
+			if (!row) throw ApiError.notFound('Message');
+			const att = await getAttachment(db, row.id, attachment_id);
+			if (!att) throw ApiError.notFound('Attachment');
+			if (!att.r2_key) throw ApiError.notFound('Attachment content (exceeded MAX_ATTACHMENT_BYTES; only metadata was kept)');
+			const obj = await env.ATTACHMENTS.get(att.r2_key);
+			if (!obj) throw ApiError.notFound('Attachment object');
+			if (obj.size > max_bytes) {
+				throw ApiError.tooLarge(`Attachment is ${obj.size} bytes, above the ${max_bytes} byte limit for MCP. Fetch it via the REST API instead.`);
+			}
+			const bytes = new Uint8Array(await obj.arrayBuffer());
+			const mime = att.mime_type ?? 'application/octet-stream';
+			const asText = encoding === 'text' || (encoding === 'auto' && isTextMime(mime));
+			const base = { id: att.id, message_id: row.id, filename: att.filename, content_type: mime, size: bytes.byteLength, disposition: att.disposition };
+			if (asText) return { ...base, encoding: 'text', text: new TextDecoder('utf-8').decode(bytes) };
+			return { ...base, encoding: 'base64', content_base64: bytesToBase64(bytes) };
+		}),
+	);
+
+	server.registerTool(
 		'get_latest_message',
 		{
 			description: 'Return the newest message in an inbox (optionally only if newer than `since`), with full body. Returns null when there is none.',
@@ -226,14 +272,30 @@ export function buildMcpServer(env: Env, config: Config, ctx: WaitUntil): McpSer
 	server.registerTool(
 		'reply_to_message',
 		{
-			description: 'Reply to a message in the same thread (sets In-Reply-To/References). reply_all also copies the other original recipients.',
-			inputSchema: z.object({ inbox_id: inboxIdArg, message_id: z.string(), text: z.string().optional(), html: z.string().optional(), reply_all: z.boolean().optional(), attachments: z.array(attachmentSchema).optional() }),
+			description:
+				'Reply to a message in the same thread (sets In-Reply-To/References). The original is quoted below your text unless quote_original is false. reply_all also copies the other original recipients.',
+			inputSchema: z.object({
+				inbox_id: inboxIdArg,
+				message_id: z.string(),
+				text: z.string().optional(),
+				html: z.string().optional(),
+				reply_all: z.boolean().optional(),
+				quote_original: z.boolean().optional(),
+				attachments: z.array(attachmentSchema).optional(),
+			}),
 		},
 		wrap(async (a) => {
 			const inbox = await requireInbox(db, a.inbox_id);
 			const original = await getMessage(db, inbox.id, a.message_id);
 			if (!original) throw ApiError.notFound('Message');
-			const ids = await replyToMessage(env, config, inbox, original, { text: a.text, html: a.html, attachments: a.attachments }, { replyAll: a.reply_all === true });
+			const ids = await replyToMessage(
+				env,
+				config,
+				inbox,
+				original,
+				{ text: a.text, html: a.html, quoteOriginal: a.quote_original, attachments: a.attachments },
+				{ replyAll: a.reply_all === true },
+			);
 			return afterSend(env, config, inbox, ids, ctx);
 		}),
 	);
@@ -247,21 +309,6 @@ export function buildMcpServer(env: Env, config: Config, ctx: WaitUntil): McpSer
 			if (!original) throw ApiError.notFound('Message');
 			const ids = await forwardMessage(env, config, inbox, original, { to: a.to, text: a.text });
 			return afterSend(env, config, inbox, ids, ctx);
-		}),
-	);
-
-	server.registerTool(
-		'extract_from_message',
-		{
-			description:
-				'Use an LLM to pull specific data out of an email (e.g. "the 6-digit verification code", "the confirmation link"). Targets message_id, or the newest message (after `since`) when omitted. Optionally pass a JSON Schema to get structured output.',
-			inputSchema: z.object({ inbox_id: inboxIdArg, prompt: z.string(), message_id: z.string().optional(), since: sinceArg, schema: z.record(z.string(), z.unknown()).optional() }),
-		},
-		wrap(async (a) => {
-			const inbox = await requireInbox(db, a.inbox_id);
-			const message = await pickMessage(db, inbox, { message_id: a.message_id, since: a.since });
-			const out = await extractFromMessage(env, config, message, { prompt: a.prompt, schema: a.schema });
-			return { ...out, message_id: message.id, thread_id: message.thread_id };
 		}),
 	);
 

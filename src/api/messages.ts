@@ -229,6 +229,7 @@ function toReplyInput(body: z.infer<typeof replySchema>) {
 	return {
 		text: body.text,
 		html: body.html,
+		quoteOriginal: body.quote_original,
 		subject: body.subject,
 		fromName: body.from_name,
 		cc: body.cc,

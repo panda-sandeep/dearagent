@@ -1,13 +1,15 @@
 /**
- * AgentMail — self-hosted email inboxes for AI agents.
+ * DearAgent — self-hosted email inboxes for AI agents.
  * Docs: https://developers.cloudflare.com/workers/wrangler/configuration/
  *
- * Before deploying, replace the placeholder values marked REPLACE_ME.
- * `npm run setup` walks through this interactively.
+ * This is the template. The real config, wrangler.jsonc, is generated from it and
+ * git-ignored because it holds values specific to your Cloudflare account.
+ * `npm run setup` copies this file and fills in the REPLACE_ME placeholders;
+ * or copy it yourself: cp wrangler.example.jsonc wrangler.jsonc
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "agentmail",
+	"name": "dearagent",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-08-22",
 	"compatibility_flags": ["nodejs_compat"],
@@ -19,7 +21,7 @@
 	"d1_databases": [
 		{
 			"binding": "DB",
-			"database_name": "agentmail",
+			"database_name": "dearagent",
 			"database_id": "REPLACE_ME_D1_DATABASE_ID",
 			"migrations_dir": "migrations"
 		}
@@ -27,7 +29,7 @@
 	"r2_buckets": [
 		{
 			"binding": "ATTACHMENTS",
-			"bucket_name": "agentmail-attachments"
+			"bucket_name": "dearagent-attachments"
 		}
 	],
 	"send_email": [
@@ -37,17 +39,17 @@
 			// "remote": true
 		}
 	],
-	"ai": {
-		"binding": "AI"
-	},
 	// Daily retention purge (see RETENTION_DAYS below).
 	"triggers": {
 		"crons": ["17 3 * * *"]
 	},
+	// Email Routing rules owned by this Worker, applied on `wrangler deploy`.
+	// "*@<domain>" is the catch-all: every address at the domain reaches email() below.
+	// Must match EMAIL_DOMAINS. (Newer wrangler feature; editors may flag it against the JSON schema.)
+	"addresses": ["*@REPLACE_ME.example.com"],
 	// Configuration -------------------------------------------------------
 	// Secrets (set with `wrangler secret put <NAME>`, never in this file):
 	//   API_KEY          required — bearer token for the REST API and MCP endpoint
-	//   OPENAI_API_KEY   optional — only when AI_PROVIDER=openai
 	"vars": {
 		// Comma-separated list of domains this Worker accepts mail for and may send from.
 		"EMAIL_DOMAINS": "REPLACE_ME.example.com",
@@ -60,10 +62,6 @@
 		"STORE_RAW": "false",
 		// Attachments larger than this are recorded (metadata) but their bytes are not stored.
 		"MAX_ATTACHMENT_BYTES": "10485760",
-		// "workers-ai" (default, no key needed) or "openai" (requires OPENAI_API_KEY secret).
-		"AI_PROVIDER": "workers-ai",
-		// Optional model override. Defaults: @cf/meta/llama-3.3-70b-instruct-fp8-fast / gpt-5-mini
-		"AI_MODEL": "",
 		// Display name used on outbound mail when the request does not set one.
 		"DEFAULT_FROM_NAME": "",
 		// Per-attempt webhook delivery timeout.

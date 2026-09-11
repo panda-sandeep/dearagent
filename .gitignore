@@ -1,4 +1,6 @@
 node_modules/
+# Generated from wrangler.example.jsonc by `npm run setup`; holds account-specific values.
+wrangler.jsonc
 dist/
 .wrangler/
 .dev.vars

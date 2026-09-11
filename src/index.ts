@@ -1,5 +1,5 @@
 /**
- * AgentMail — email inboxes for AI agents, on Cloudflare Workers.
+ * DearAgent — email inboxes for AI agents, on Cloudflare Workers.
  *
  *   email()      inbound mail via Email Routing (catch-all → this Worker)
  *   fetch()      REST API + MCP endpoint (/mcp), Bearer-authenticated

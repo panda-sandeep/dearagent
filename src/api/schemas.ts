@@ -44,6 +44,8 @@ export const composeSchema = z.object({
 export const replySchema = z.object({
 	text: z.string().optional(),
 	html: z.string().optional(),
+	/** Append the original message below the reply (default true). */
+	quote_original: z.boolean().optional(),
 	subject: z.string().max(998).optional(),
 	from_name: z.string().max(200).optional(),
 	cc: mailboxListSchema.optional(),
@@ -98,13 +100,6 @@ export const updateWebhookSchema = z.object({
 	events: webhookEventsSchema.optional(),
 	secret: z.string().min(16).max(200).optional(),
 	enabled: z.boolean().optional(),
-});
-
-export const extractSchema = z.object({
-	prompt: z.string().min(1).max(10_000),
-	message_id: z.string().optional(),
-	since: z.union([z.number(), z.string()]).optional(),
-	schema: z.record(z.string(), z.unknown()).optional(),
 });
 
 const boolParam = z

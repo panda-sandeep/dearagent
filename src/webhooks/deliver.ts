@@ -34,8 +34,8 @@ async function hmacHex(secret: string, data: string): Promise<string> {
 
 /**
  * Signature scheme (documented in README):
- *   X-AgentMail-Timestamp: <unix seconds>
- *   X-AgentMail-Signature: sha256=<hex hmac(secret, `${timestamp}.${rawBody}`)>
+ *   X-DearAgent-Timestamp: <unix seconds>
+ *   X-DearAgent-Signature: sha256=<hex hmac(secret, `${timestamp}.${rawBody}`)>
  */
 export async function signPayload(secret: string, timestamp: string, body: string): Promise<string> {
 	return `sha256=${await hmacHex(secret, `${timestamp}.${body}`)}`;
@@ -68,11 +68,11 @@ async function deliverOne(env: Env, config: Config, webhook: WebhookRow, event: 
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
-					'User-Agent': 'agentmail-webhooks/1',
-					'X-AgentMail-Event': event.type,
-					'X-AgentMail-Delivery': deliveryId,
-					'X-AgentMail-Timestamp': timestamp,
-					'X-AgentMail-Signature': signature,
+					'User-Agent': 'dearagent-webhooks/1',
+					'X-DearAgent-Event': event.type,
+					'X-DearAgent-Delivery': deliveryId,
+					'X-DearAgent-Timestamp': timestamp,
+					'X-DearAgent-Signature': signature,
 				},
 				body,
 				signal: AbortSignal.timeout(config.webhookTimeoutMs),

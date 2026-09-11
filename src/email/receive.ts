@@ -56,7 +56,7 @@ export async function ingestEmail(
 	const { inbox } = await upsertInbox(env.DB, { address: recipient });
 	const receivedAt = Date.now();
 
-	const messageIdHeader = normalizeMessageId(parsed.messageId) ?? `<${crypto.randomUUID()}@agentmail.local>`;
+	const messageIdHeader = normalizeMessageId(parsed.messageId) ?? `<${crypto.randomUUID()}@dearagent.local>`;
 	const duplicate = await findByMessageIdHeader(env.DB, inbox.id, messageIdHeader);
 	if (duplicate) {
 		return { status: 'duplicate', messageId: duplicate.id, threadId: duplicate.thread_id, inboxId: inbox.id };

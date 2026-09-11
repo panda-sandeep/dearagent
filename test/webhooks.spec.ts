@@ -49,11 +49,11 @@ describe('webhooks', () => {
 		expect(net.calls).toHaveLength(1);
 		const { headers, body, method } = net.calls[0];
 		expect(method).toBe('POST');
-		expect(headers['x-agentmail-event']).toBe('message.received');
+		expect(headers['x-dearagent-event']).toBe('message.received');
 		expect(headers['content-type']).toBe('application/json');
-		expect(headers['x-agentmail-delivery']).toBeTruthy();
-		expect(await verifySignature(secret, headers['x-agentmail-timestamp'], body, headers['x-agentmail-signature'])).toBe(true);
-		expect(await verifySignature('wrong', headers['x-agentmail-timestamp'], body, headers['x-agentmail-signature'])).toBe(false);
+		expect(headers['x-dearagent-delivery']).toBeTruthy();
+		expect(await verifySignature(secret, headers['x-dearagent-timestamp'], body, headers['x-dearagent-signature'])).toBe(true);
+		expect(await verifySignature('wrong', headers['x-dearagent-timestamp'], body, headers['x-dearagent-signature'])).toBe(false);
 
 		const payload = JSON.parse(body);
 		expect(payload.type).toBe('message.received');

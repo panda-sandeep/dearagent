@@ -1,13 +1,13 @@
-# AgentMail
+# DearAgent
 
 Self-hosted email inboxes for AI agents, running entirely on your Cloudflare account.
 
-Give every agent its own address. Receive mail, read it over a REST API or MCP, extract the bits you need with an LLM, reply in-thread, send new mail, and get webhooks when something arrives. One Worker, one repo, no servers.
+Give every agent its own address. Receive mail, read it over a REST API or MCP, reply in-thread, send new mail, and get webhooks when something arrives. One Worker, one repo, no servers.
 
 ```
 Inbound   *@mail.example.com ──► Email Routing ──► Worker email() ──► D1 (+ R2 for attachments) ──► webhooks
 Outbound  POST /inboxes/:id/messages(/…/reply) ──► Worker ──► Cloudflare Email Sending
-Agents    REST (Bearer key)  ·  MCP at /mcp  ·  POST /inboxes/:id/extract (Workers AI or OpenAI)
+Agents    REST (Bearer key)  ·  MCP at /mcp
 ```
 
 Inspired by [agentmail.to](https://www.agentmail.to/); built so you can run the same idea yourself for the cost of a Workers plan.
@@ -20,7 +20,6 @@ Inspired by [agentmail.to](https://www.agentmail.to/); built so you can run the 
 - **Attachments** stored in R2 and served back with the right content type. Inline images are distinguished from real attachments.
 - **Send, reply, reply-all, forward** with correct threading headers, via the native Email Sending binding.
 - **Webhooks** on `message.received` and `message.sent`, HMAC-signed, retried, with a per-webhook delivery log.
-- **AI extraction.** "Return the 6-digit code" or "the confirmation link" against the newest message. Workers AI by default, OpenAI if you prefer. Optional JSON Schema for structured output.
 - **MCP server** at `/mcp` so Claude Code, Cursor, or any MCP client can use an inbox as a tool, including `wait_for_message` to block until mail arrives.
 - **Retention.** Daily purge after `RETENTION_DAYS`, plus per-address TTLs (`signup.ttl.600@…` expires after 600 s).
 
@@ -29,7 +28,7 @@ Inspired by [agentmail.to](https://www.agentmail.to/); built so you can run the 
 Prerequisites: a Cloudflare account with a zone you can use for email (e.g. `mail.example.com` as a subdomain zone or a dedicated domain), Node 20+, and `npx wrangler login` done.
 
 ```bash
-git clone https://github.com/<you>/agentmail && cd agentmail
+git clone https://github.com/<you>/dearagent && cd dearagent
 npm install
 npm run setup          # interactive: D1, R2, secrets, Email Routing/Sending, deploy, catch-all rule
 ```
@@ -37,25 +36,32 @@ npm run setup          # interactive: D1, R2, secrets, Email Routing/Sending, de
 Or by hand:
 
 ```bash
-npx wrangler d1 create agentmail                       # paste database_id into wrangler.jsonc
-npx wrangler r2 bucket create agentmail-attachments
-# edit wrangler.jsonc: set EMAIL_DOMAINS to your domain(s)
-npx wrangler d1 migrations apply agentmail --remote
+cp wrangler.example.jsonc wrangler.jsonc               # wrangler.jsonc is git-ignored; it holds your values
+npx wrangler d1 create dearagent                       # paste database_id into wrangler.jsonc
+npx wrangler r2 bucket create dearagent-attachments
+# edit wrangler.jsonc: set EMAIL_DOMAINS to "example.com" and addresses to ["*@example.com"]
+npx wrangler d1 migrations apply dearagent --remote
 npx wrangler secret put API_KEY                        # any long random string
-npx wrangler email routing enable mail.example.com
-npx wrangler email sending enable mail.example.com     # only needed to send/reply; Workers Paid
-npx wrangler deploy
-npx wrangler email routing rules create mail.example.com \
-  --match-type all --match-field to --match-value '*' \
-  --action-type worker --action-value agentmail
+npx wrangler email routing enable example.com
+npx wrangler email sending enable example.com          # only needed to send/reply; Workers Paid
+npx wrangler deploy                                    # also creates the catch-all routing rule from `addresses`
 ```
 
-If the last command is not available in your wrangler version, add the catch-all in the dashboard: **Compute & AI → Email Service → Email Routing → your domain → Routing rules → Catch-all → Send to a Worker → agentmail**.
+The `addresses` entry in `wrangler.jsonc` declares the Email Routing rules this Worker owns; `*@example.com` is the catch-all. `wrangler deploy` prints an "Email Routing plan" and applies it, so no separate rule command is needed. If your wrangler is older than 4.131 and ignores `addresses`, set the catch-all in the dashboard: **Compute & AI → Email Service → Email Routing → your domain → Routing rules → Catch-all → Send to a Worker → dearagent**.
+
+### Which domains work
+
+Email Routing is configured on the **apex zone** and must own its MX records. That gives two hard rules:
+
+- **A domain that already receives mail elsewhere (Google Workspace, Fastmail, …) cannot be used, and neither can its subdomains.** Cloudflare refuses to onboard the apex ("Non-Cloudflare MX records exist"), and subdomain routing is configured under the onboarded apex. Use a domain you can dedicate to Cloudflare Email Routing instead: one that receives no mail today, or a new one.
+- **Subdomains of a dedicated zone do work**, but only after the apex is onboarded. In the dashboard: onboard the apex under **Email Service → Email Routing**, then **Settings → Subdomains → Add subdomain**, then create the subdomain's **Catch-all** rule pointing at the `dearagent` Worker. Wrangler cannot do this; `npm run setup` detects the case and prints the steps.
+
+Email Sending has neither restriction: `wrangler email sending enable mail.example.com` works on any subdomain, so you can send from a subdomain of a domain that receives mail elsewhere. You just cannot receive there.
 
 Then:
 
 ```bash
-export AM=https://agentmail.<your-subdomain>.workers.dev
+export AM=https://dearagent.<your-subdomain>.workers.dev
 export KEY=<your API_KEY>
 
 # 1. get an address
@@ -64,16 +70,11 @@ curl -s -X POST $AM/inboxes -H "Authorization: Bearer $KEY" -d '{}'
 
 # 2. send an email to it, then read it
 curl -s "$AM/inboxes/agent-k3m9x2pq@mail.example.com/messages/latest" -H "Authorization: Bearer $KEY"
-
-# 3. pull out what you need
-curl -s -X POST "$AM/inboxes/agent-k3m9x2pq@mail.example.com/extract" \
-  -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
-  -d '{"prompt":"Return the verification link"}'
 ```
 
 ## Configuration
 
-Everything lives in `wrangler.jsonc`. Secrets are set with `wrangler secret put`.
+Everything lives in `wrangler.jsonc`, which is git-ignored and generated from `wrangler.example.jsonc` by `npm run setup` (or `cp` it yourself). The template is the committed source of truth; put new settings there. Secrets are set with `wrangler secret put`.
 
 | Setting | Default | What it does |
 |---|---|---|
@@ -82,14 +83,11 @@ Everything lives in `wrangler.jsonc`. Secrets are set with `wrangler secret put`
 | `RETENTION_DAYS` | `30` | Purge messages older than this. `0` keeps them forever. Per-address `ttl.<seconds>` still applies. |
 | `STORE_RAW` | `false` | Keep the raw MIME in R2 so `GET …/messages/:id/raw` works. |
 | `MAX_ATTACHMENT_BYTES` | `10485760` | Larger attachments keep metadata only (`stored: false`). |
-| `AI_PROVIDER` | `workers-ai` | `workers-ai` (no key) or `openai` (needs `OPENAI_API_KEY`). |
-| `AI_MODEL` | provider default | `@cf/meta/llama-3.3-70b-instruct-fp8-fast` or `gpt-5-mini` unless overridden. |
 | `DEFAULT_FROM_NAME` | `""` | Display name on outbound mail when the request or inbox has none. |
 | `WEBHOOK_TIMEOUT_MS` | `10000` | Per-attempt webhook timeout. |
 | secret `API_KEY` | required | Bearer token for the API and MCP. |
-| secret `OPENAI_API_KEY` | optional | Only with `AI_PROVIDER=openai`. |
 
-Bindings (`DB`, `ATTACHMENTS`, `EMAIL`, `AI`) and the daily cron are pre-declared. To serve the API on your own hostname, uncomment `routes` in `wrangler.jsonc`.
+Bindings (`DB`, `ATTACHMENTS`, `EMAIL`) and the daily cron are pre-declared. To serve the API on your own hostname, uncomment `routes` in `wrangler.jsonc`.
 
 ## API
 
@@ -121,13 +119,13 @@ Inbox ids are the lowercased address, so URL-encode the `@` if your client insis
 | `GET` | `/inboxes/:inbox/messages/:id/raw` | `message/rfc822`, requires `STORE_RAW=true`. |
 | `GET` | `/inboxes/:inbox/messages/:id/attachments/:attId` | Streams the file. |
 | `POST` | `/inboxes/:inbox/messages` | Compose. `{ to, cc?, bcc?, subject, text?, html?, from_name?, reply_to?, headers?, attachments?, labels? }`. Recipients may be `"a@b.c"`, `"Name <a@b.c>"`, or `{ address, name }`. |
-| `POST` | `/inboxes/:inbox/messages/:id/reply` | `{ text?, html?, subject?, cc?, bcc?, attachments? }`. Sets `In-Reply-To`/`References`, honours `Reply-To`. |
+| `POST` | `/inboxes/:inbox/messages/:id/reply` | `{ text?, html?, subject?, cc?, bcc?, attachments?, quote_original? }`. Sets `In-Reply-To`/`References`, honours `Reply-To`. The original is quoted below the body unless `quote_original: false`. |
 | `POST` | `/inboxes/:inbox/messages/:id/reply-all` | Same, plus the other original recipients on cc. |
 | `POST` | `/inboxes/:inbox/messages/:id/forward` | `{ to, text?, html?, include_attachments? }`. Quotes the original; starts a new thread. |
-| `POST` | `/inboxes/:inbox/extract` | `{ prompt, message_id? \| since?, schema? }`. Runs the prompt against one message (default: newest). |
-| `POST` | `/inboxes/:inbox/messages/:id/extract` | Same for a specific message. |
 
 Outbound attachments are `{ filename, content_type, content_base64, disposition?, content_id? }`.
+
+Every outbound message is sent as multipart/alternative: when only `text` is given an HTML part is generated from it, and when only `html` is given a text part is derived. Replies and forwards quote the original message the way mail clients do, which keeps them out of spam filters and readable for humans.
 
 A message looks like:
 
@@ -169,7 +167,7 @@ Events: `message.received`, `message.sent`. Payload:
   "message": { …same shape as above…, "body_truncated": false } }
 ```
 
-Bodies over 32 KB are omitted and `body_truncated` is set; fetch the message by id. Headers: `X-AgentMail-Event`, `X-AgentMail-Delivery`, `X-AgentMail-Timestamp` (unix seconds), `X-AgentMail-Signature: sha256=<hex>`. Verify with:
+Bodies over 32 KB are omitted and `body_truncated` is set; fetch the message by id. Headers: `X-DearAgent-Event`, `X-DearAgent-Delivery`, `X-DearAgent-Timestamp` (unix seconds), `X-DearAgent-Signature: sha256=<hex>`. Verify with:
 
 ```js
 const expected = 'sha256=' + hmacSha256Hex(secret, `${timestamp}.${rawBody}`);
@@ -186,13 +184,13 @@ Deliveries retry three times (0 s, 1 s, 4 s) on network errors and 5xx/408/429; 
 The Worker exposes a stateless Streamable HTTP MCP server at `/mcp`, protected by the same bearer key.
 
 ```bash
-claude mcp add --transport http agentmail https://agentmail.<you>.workers.dev/mcp \
+claude mcp add --transport http dearagent https://dearagent.<you>.workers.dev/mcp \
   --header "Authorization: Bearer $KEY"
 ```
 
-Tools: `list_inboxes`, `create_inbox`, `list_threads`, `get_thread`, `list_messages`, `get_message`, `get_latest_message`, `wait_for_message`, `search_messages`, `send_message`, `reply_to_message`, `forward_message`, `extract_from_message`, `list_webhooks`, `create_webhook`.
+Tools: `list_inboxes`, `create_inbox`, `list_threads`, `get_thread`, `list_messages`, `get_message`, `get_attachment`, `get_latest_message`, `wait_for_message`, `search_messages`, `send_message`, `reply_to_message`, `forward_message`, `list_webhooks`, `create_webhook`.
 
-A typical agent flow: `create_inbox` → hand the address to a signup form → `wait_for_message` → `extract_from_message` with "return the verification link".
+A typical agent flow: `create_inbox` → hand the address to a signup form → `wait_for_message` → read the verification link out of the returned message body.
 
 ## Local development
 
@@ -240,7 +238,6 @@ src/db/*              thin D1 modules per table + keyset pagination
 src/api/*             Hono routes, zod schemas, serializers, error mapping
 src/mcp/server.ts     MCP tools (wrap the same functions the REST layer uses)
 src/webhooks/deliver.ts  HMAC signing, retries, delivery log
-src/ai/extract.ts     Workers AI / OpenAI structured extraction
 src/cron.ts           retention purge
 migrations/           D1 schema
 ```

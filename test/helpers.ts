@@ -82,7 +82,7 @@ export async function api(path: string, init: RequestInit & { json?: unknown; au
 		headers.set('Content-Type', 'application/json');
 		body = JSON.stringify(init.json);
 	}
-	const request = new Request(`https://agentmail.test${path}`, { ...init, headers, body });
+	const request = new Request(`https://dearagent.test${path}`, { ...init, headers, body });
 	const ctx = createExecutionContext();
 	const response = await worker.fetch(request, env, ctx);
 	await waitOnExecutionContext(ctx);

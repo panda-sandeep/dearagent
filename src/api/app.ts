@@ -6,7 +6,6 @@ import { inboxRoutes } from './inboxes';
 import { threadRoutes } from './threads';
 import { messageRoutes } from './messages';
 import { webhookRoutes } from './webhooks';
-import { extractRoutes } from './extract';
 import { mcpRoutes } from '../mcp/server';
 
 export type AppEnv = {
@@ -71,8 +70,8 @@ export function createApp() {
 
 	app.get('/', (c) =>
 		c.json({
-			name: 'agentmail',
-			docs: 'https://github.com/sandeepvpanda/agentmail',
+			name: 'dearagent',
+			docs: 'https://github.com/sandeepvpanda/dearagent',
 			endpoints: ['/health', '/auth/me', '/inboxes', '/webhooks', '/mcp'],
 		}),
 	);
@@ -98,7 +97,6 @@ export function createApp() {
 	app.route('/', threadRoutes());
 	app.route('/', messageRoutes());
 	app.route('/', webhookRoutes());
-	app.route('/', extractRoutes());
 	app.route('/', mcpRoutes());
 
 	return app;
