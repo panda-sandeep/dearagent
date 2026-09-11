@@ -2,7 +2,8 @@
   "name": "dearagent",
   "version": "0.1.0",
   "description": "Self-hosted email inboxes for AI agents on Cloudflare Workers. Receive, read, reply, send, webhooks, MCP.",
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
+  "author": "Sandeep Panda",
   "private": true,
   "type": "module",
   "scripts": {

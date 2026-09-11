@@ -242,6 +242,12 @@ src/cron.ts           retention purge
 migrations/           D1 schema
 ```
 
+## Contributing
+
+Pull requests are welcome. By submitting a contribution you agree to the [Contributor License Agreement](CLA.md), which lets the project also be offered under licenses other than the AGPL.
+
 ## License
 
-MIT
+Copyright (c) 2026 Sandeep Panda.
+
+[GNU Affero General Public License v3.0](LICENSE). You can self-host, modify and redistribute DearAgent freely. If you run a modified version as a network service, you must make your modified source available to its users under the same license.
