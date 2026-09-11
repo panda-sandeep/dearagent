@@ -2,6 +2,8 @@
 
 Self-hosted email inboxes for AI agents, running entirely on your Cloudflare account.
 
+> **Experimental.** DearAgent is early software. It works end to end, but it has not had an in-depth audit, the API may still change, and things may break. Review the code and run your own audit before pointing it at anything sensitive or exposing it to untrusted agents.
+
 Give every agent its own address. Receive mail, read it over a REST API or MCP, reply in-thread, send new mail, and get webhooks when something arrives. One Worker, one repo, no servers.
 
 ```
@@ -25,7 +27,7 @@ Inspired by [agentmail.to](https://www.agentmail.to/); built so you can run the 
 
 ## Quick start
 
-Prerequisites: a Cloudflare account with a zone you can use for email (e.g. `mail.example.com` as a subdomain zone or a dedicated domain), Node 20+, and `npx wrangler login` done.
+Prerequisites: a Cloudflare account with an apex domain you can dedicate to email (see "Which domains work" below), Node 20+, and `npx wrangler login` done.
 
 ```bash
 git clone https://github.com/panda-sandeep/dearagent && cd dearagent
@@ -51,12 +53,9 @@ The `addresses` entry in `wrangler.jsonc` declares the Email Routing rules this 
 
 ### Which domains work
 
-Email Routing is configured on the **apex zone** and must own its MX records. That gives two hard rules:
+Use an apex domain that you can dedicate to Cloudflare Email Routing, such as `example.com`. Email Routing is configured on the apex zone and must own its MX records, so a domain that already receives mail elsewhere (Google Workspace, Fastmail, …) cannot be used: Cloudflare refuses to onboard it with "Non-Cloudflare MX records exist". Pick a domain that receives no mail today, or register a new one.
 
-- **A domain that already receives mail elsewhere (Google Workspace, Fastmail, …) cannot be used, and neither can its subdomains.** Cloudflare refuses to onboard the apex ("Non-Cloudflare MX records exist"), and subdomain routing is configured under the onboarded apex. Use a domain you can dedicate to Cloudflare Email Routing instead: one that receives no mail today, or a new one.
-- **Subdomains of a dedicated zone do work**, but only after the apex is onboarded. In the dashboard: onboard the apex under **Email Service → Email Routing**, then **Settings → Subdomains → Add subdomain**, then create the subdomain's **Catch-all** rule pointing at the `dearagent` Worker. Wrangler cannot do this; `npm run setup` detects the case and prints the steps.
-
-Email Sending has neither restriction: `wrangler email sending enable mail.example.com` works on any subdomain, so you can send from a subdomain of a domain that receives mail elsewhere. You just cannot receive there.
+Email Sending has no such restriction and works on any domain or subdomain you verify, so you can send from `mail.example.com` even if `example.com` receives mail elsewhere. You just cannot receive there.
 
 Then:
 
@@ -191,6 +190,8 @@ claude mcp add --transport http dearagent https://dearagent.<you>.workers.dev/mc
 Tools: `list_inboxes`, `create_inbox`, `list_threads`, `get_thread`, `list_messages`, `get_message`, `get_attachment`, `get_latest_message`, `wait_for_message`, `search_messages`, `send_message`, `reply_to_message`, `forward_message`, `list_webhooks`, `create_webhook`.
 
 A typical agent flow: `create_inbox` → hand the address to a signup form → `wait_for_message` → read the verification link out of the returned message body.
+
+An [agent skill](skills/dearagent/SKILL.md) teaches an agent this workflow in full: connecting, waiting instead of polling, reading attachments, replying in thread, and the mistakes to avoid. Copy the `skills/dearagent` folder into your project's skills directory to use it.
 
 ## Local development
 
