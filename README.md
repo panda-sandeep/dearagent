@@ -16,9 +16,9 @@
   <a href="https://github.com/panda-sandeep/dearagent/stargazers"><img src="https://img.shields.io/github/stars/panda-sandeep/dearagent?style=flat-square&color=171512" alt="GitHub stars"></a>
 </p>
 
-# DearAgent
+# DearAgent: email inboxes for AI agents, self-hosted on Cloudflare
 
-**Your agent needs an email address.** DearAgent gives every agent its own inbox, running entirely on your Cloudflare account. Receive mail, wait for the verification code, reply in thread, send new mail, and get a webhook when something arrives. One Worker, one repo, no servers.
+**Your agent needs an email address.** DearAgent gives every agent its own inbox, running entirely on your Cloudflare account. Receive inbound email, wait for the verification code, reply in thread, send new mail, and get a webhook when something arrives. One Worker, one repo, no servers.
 
 It is the open-source, self-hosted alternative to [AgentMail](https://www.agentmail.to/): the same idea, an email inbox API for AI agents, run on your own infrastructure for the cost of a Workers plan.
 
@@ -58,7 +58,7 @@ You do not need to deploy anything to see it work. [dearagent.sh](https://dearag
 - **Attachments** stored in R2 and served back with the right content type. Inline images are distinguished from real attachments.
 - **Send, reply, reply-all, forward** with correct threading headers, via the native Email Sending binding.
 - **Webhooks** on `message.received` and `message.sent`, HMAC-signed, retried, with a per-webhook delivery log.
-- **MCP server** at `/mcp` so Claude Code, Cursor, or any MCP client can use an inbox as a tool, including `wait_for_message` to block until mail arrives.
+- **Email MCP server** at `/mcp` so Claude Code, Cursor, or any MCP client can use an inbox as a tool, including `wait_for_message` to block until mail arrives.
 - **Retention.** Daily purge after `RETENTION_DAYS`, plus per-address TTLs (`signup.ttl.600@…` expires after 600 s).
 
 ## Why self-host
