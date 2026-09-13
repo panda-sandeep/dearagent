@@ -66,6 +66,12 @@
 		"DEFAULT_FROM_NAME": "",
 		// Per-attempt webhook delivery timeout.
 		"WEBHOOK_TIMEOUT_MS": "10000"
+		// Optional: only ingest local-parts matching this regex (e.g. "^agent-" to accept
+		// only agent-abc123@yourdomain.com); everything else is forwarded to
+		// FORWARD_UNMATCHED_TO, or rejected if that's unset. Omit both to ingest all mail
+		// (the default).
+		// "ADDRESS_MATCH_PATTERN": "^agent-",
+		// "FORWARD_UNMATCHED_TO": "you@example.com"
 	}
 	// Optional: serve the API on your own hostname.
 	// "routes": [{ "pattern": "mail-api.example.com", "custom_domain": true }]

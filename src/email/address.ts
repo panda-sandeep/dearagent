@@ -25,6 +25,11 @@ export function isAllowedDomain(addr: string, config: Config): boolean {
 	return config.domains.includes(domainOf(normalizeAddress(addr)));
 }
 
+/** True when `localPart` should be ingested by this Worker: always true if no pattern is configured. */
+export function matchesAddressPattern(localPart: string, pattern: RegExp | null): boolean {
+	return !pattern || pattern.test(localPart);
+}
+
 /**
  * Optional per-address TTL: `anything.ttl.3600@domain` expires the message after 3600 seconds.
  * Returns null when the address carries no ttl token.

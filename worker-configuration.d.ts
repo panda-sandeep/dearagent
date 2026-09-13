@@ -12,6 +12,8 @@ interface __BaseEnv_Env {
 	MAX_ATTACHMENT_BYTES: "10485760";
 	DEFAULT_FROM_NAME: "";
 	WEBHOOK_TIMEOUT_MS: "10000";
+	ADDRESS_MATCH_PATTERN: "";
+	FORWARD_UNMATCHED_TO: "";
 }
 declare namespace Cloudflare {
 	interface GlobalProps {
@@ -24,7 +26,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "EMAIL_DOMAINS" | "RETENTION_DAYS" | "ALLOW_UNKNOWN_INBOX" | "STORE_RAW" | "MAX_ATTACHMENT_BYTES" | "DEFAULT_FROM_NAME" | "WEBHOOK_TIMEOUT_MS">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "EMAIL_DOMAINS" | "RETENTION_DAYS" | "ALLOW_UNKNOWN_INBOX" | "STORE_RAW" | "MAX_ATTACHMENT_BYTES" | "DEFAULT_FROM_NAME" | "WEBHOOK_TIMEOUT_MS" | "ADDRESS_MATCH_PATTERN" | "FORWARD_UNMATCHED_TO">> {}
 }
 
 // Begin runtime types

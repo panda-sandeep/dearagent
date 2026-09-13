@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeMessageId, parseReferences, replySubject, stripReplyPrefixes, ttlSecondsFromAddress, forwardSubject } from '../src/email/address';
+import { normalizeMessageId, parseReferences, replySubject, stripReplyPrefixes, ttlSecondsFromAddress, forwardSubject, matchesAddressPattern } from '../src/email/address';
 import { toFtsQuery, makeSnippet } from '../src/db/messages';
 import { decodeCursor, encodeCursor } from '../src/db/pagination';
 import { parseSince, mailboxSchema } from '../src/api/schemas';
@@ -33,6 +33,13 @@ describe('address helpers', () => {
 		expect(ttlSecondsFromAddress('ttl.60@d.com')).toBe(60);
 		expect(ttlSecondsFromAddress('battle.ship@d.com')).toBeNull();
 		expect(ttlSecondsFromAddress('x.ttl.0@d.com')).toBeNull();
+	});
+
+	it('matches local-parts against the configured address pattern', () => {
+		expect(matchesAddressPattern('agent-abc123', null)).toBe(true);
+		expect(matchesAddressPattern('anything', null)).toBe(true);
+		expect(matchesAddressPattern('agent-abc123', /^agent-/)).toBe(true);
+		expect(matchesAddressPattern('billing', /^agent-/)).toBe(false);
 	});
 });
 

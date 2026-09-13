@@ -25,6 +25,10 @@ export interface Config {
 	maxAttachmentBytes: number;
 	defaultFromName: string;
 	webhookTimeoutMs: number;
+	/** Only local-parts matching this regex are ingested; everything else is forwarded (or rejected). Null = ingest everything. */
+	addressMatchPattern: RegExp | null;
+	/** Verified Email Routing destination for local-parts that don't match `addressMatchPattern`. Null = reject them instead. */
+	forwardUnmatchedTo: string | null;
 }
 
 export class ConfigError extends Error {}
@@ -39,6 +43,16 @@ function int(value: string | undefined, fallback: number, min = 0): number {
 	const n = Number(value);
 	if (!Number.isFinite(n) || n < min) throw new ConfigError(`Invalid numeric config value: ${value}`);
 	return Math.floor(n);
+}
+
+function regex(value: string | undefined): RegExp | null {
+	const trimmed = (value ?? '').trim();
+	if (!trimmed) return null;
+	try {
+		return new RegExp(trimmed, 'i');
+	} catch {
+		throw new ConfigError(`Invalid ADDRESS_MATCH_PATTERN regex: ${trimmed}`);
+	}
 }
 
 export function getConfig(env: Env): Config {
@@ -58,6 +72,8 @@ export function getConfig(env: Env): Config {
 		maxAttachmentBytes: int(env.MAX_ATTACHMENT_BYTES, 10 * 1024 * 1024),
 		defaultFromName: String(env.DEFAULT_FROM_NAME ?? '').trim(),
 		webhookTimeoutMs: int(env.WEBHOOK_TIMEOUT_MS, 10_000, 1000),
+		addressMatchPattern: regex(env.ADDRESS_MATCH_PATTERN),
+		forwardUnmatchedTo: String(env.FORWARD_UNMATCHED_TO ?? '').trim() || null,
 	};
 }
 

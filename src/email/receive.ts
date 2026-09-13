@@ -7,7 +7,7 @@ import { insertAttachmentStmt, listAttachments } from '../db/attachments';
 import type { Mailbox } from '../db/schema';
 import { messageJson } from '../api/serialize';
 import { dispatchEvent } from '../webhooks/deliver';
-import { isAllowedDomain, normalizeAddress, normalizeMessageId, parseReferences, stripReplyPrefixes, ttlSecondsFromAddress, uniqueMailboxes } from './address';
+import { isAllowedDomain, localPartOf, matchesAddressPattern, normalizeAddress, normalizeMessageId, parseReferences, stripReplyPrefixes, ttlSecondsFromAddress, uniqueMailboxes } from './address';
 import { resolveThread } from './threading';
 
 /** Flatten postal-mime addresses (which may contain groups) into plain mailboxes. */
@@ -181,6 +181,14 @@ export async function handleEmail(message: ForwardableEmailMessage, env: Env, ct
 	const recipient = normalizeAddress(message.to);
 	if (!isAllowedDomain(recipient, config)) {
 		message.setReject('Recipient domain not handled by this server');
+		return;
+	}
+	if (!matchesAddressPattern(localPartOf(recipient), config.addressMatchPattern)) {
+		if (config.forwardUnmatchedTo) {
+			await message.forward(config.forwardUnmatchedTo);
+		} else {
+			message.setReject('No such mailbox');
+		}
 		return;
 	}
 	if (!config.allowUnknownInbox && !(await getInbox(env.DB, recipient))) {
