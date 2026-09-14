@@ -135,7 +135,7 @@ Everything lives in `wrangler.jsonc`, which is git-ignored and generated from `w
 | `DEFAULT_FROM_NAME` | `""` | Display name on outbound mail when the request or inbox has none. |
 | `WEBHOOK_TIMEOUT_MS` | `10000` | Per-attempt webhook timeout. |
 | `ADDRESS_MATCH_PATTERN` | unset | Regex tested against the local-part. When set, only matching addresses are ingested; everything else is handled per `FORWARD_UNMATCHED_TO`. Unset ingests everything (default). |
-| `FORWARD_UNMATCHED_TO` | unset | Verified Email Routing destination address for mail that doesn't match `ADDRESS_MATCH_PATTERN`. Unset rejects that mail instead. |
+| `FORWARD_UNMATCHED_TO` | unset | Destination address for mail that doesn't match `ADDRESS_MATCH_PATTERN`. Must be verified in Cloudflare Email Routing (Dashboard → Email → Destination addresses) or the forward fails. Unset rejects that mail instead. |
 | secret `API_KEY` | required | Bearer token for the API and MCP. |
 
 Bindings (`DB`, `ATTACHMENTS`, `EMAIL`) and the daily cron are pre-declared. To serve the API on your own hostname, uncomment `routes` in `wrangler.jsonc`.
