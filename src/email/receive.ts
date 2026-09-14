@@ -185,6 +185,8 @@ export async function handleEmail(message: ForwardableEmailMessage, env: Env, ct
 	}
 	if (!matchesAddressPattern(localPartOf(recipient), config.addressMatchPattern)) {
 		if (config.forwardUnmatchedTo) {
+			// Cloudflare only forwards to destination addresses that have been verified
+			// in Email Routing; forwarding to an unverified address rejects.
 			await message.forward(config.forwardUnmatchedTo);
 		} else {
 			message.setReject('No such mailbox');
