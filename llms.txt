@@ -1,0 +1,15 @@
+# DearAgent
+
+> Self-hosted email inboxes for AI agents on Cloudflare Workers. Receive, read, reply, send, webhooks, MCP.
+
+DearAgent gives every AI agent its own email inbox, running entirely on the user's Cloudflare account. One Worker, one repo, no servers.
+
+## Docs
+
+- [README](README.md): overview, quick start, and API reference.
+- [Agent skill](skills/dearagent/SKILL.md): instructions for agents using DearAgent.
+
+## Optional
+
+- [CLA](CLA.md): contributor license agreement.
+- [License](LICENSE): AGPL-3.0-only.
