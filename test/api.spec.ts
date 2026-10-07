@@ -12,6 +12,41 @@ describe('auth', () => {
 		expect(body.ok).toBe(true);
 	});
 
+	it('serves /dashboard HTML without auth', async () => {
+		const res = await api('/dashboard', { auth: false });
+		expect(res.status).toBe(200);
+		expect(res.headers.get('content-type') ?? '').toMatch(/text\/html/);
+		const html = await res.text();
+		expect(html).toContain('DearAgent');
+		expect(html).toContain('/stats');
+	});
+
+	it('requires a bearer token for /stats and returns inbox in/out counts', async () => {
+		expect((await api('/stats', { auth: false })).status).toBe(401);
+		await apiJson('/inboxes', { method: 'POST', json: { address: INBOX } });
+		await ingest(buildEml({ to: INBOX, text: 'hi' }));
+		const { status, body } = await apiJson('/stats');
+		expect(status).toBe(200);
+		expect(body.domains).toEqual(['mail.example.com', 'alt.example.com']);
+		const row = body.inboxes.find((i: { address: string }) => i.address === INBOX);
+		expect(row.inbound).toBeGreaterThanOrEqual(1);
+		expect(row.outbound).toBe(0);
+		expect(body.totals.inboxes).toBeGreaterThanOrEqual(1);
+		expect((await api('/stats')).headers.get('access-control-allow-origin')).toBe('*');
+	});
+
+	it('returns zero-filled daily in/out buckets', async () => {
+		expect((await api('/stats/daily', { auth: false })).status).toBe(401);
+		await apiJson('/inboxes', { method: 'POST', json: { address: INBOX } });
+		await ingest(buildEml({ to: INBOX, text: 'hi' }));
+		const { status, body } = await apiJson('/stats/daily?days=7');
+		expect(status).toBe(200);
+		expect(body.days).toBe(7);
+		expect(body.buckets).toHaveLength(7);
+		const today = body.buckets[body.buckets.length - 1];
+		expect(today.inbound).toBeGreaterThanOrEqual(1);
+	});
+
 	it('rejects missing and wrong bearer tokens', async () => {
 		expect((await api('/inboxes', { auth: false })).status).toBe(401);
 		expect((await api('/inboxes', { auth: false, headers: { Authorization: 'Bearer nope' } })).status).toBe(401);

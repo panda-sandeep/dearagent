@@ -7,6 +7,7 @@ import { threadRoutes } from './threads';
 import { messageRoutes } from './messages';
 import { webhookRoutes } from './webhooks';
 import { mcpRoutes } from '../mcp/server';
+import { corsHeaders, dailyStats, dashboardSources, inboxStats, renderDashboard } from '../dashboard';
 
 export type AppEnv = {
 	Bindings: Env;
@@ -72,9 +73,21 @@ export function createApp() {
 		c.json({
 			name: 'dearagent',
 			docs: 'https://github.com/panda-sandeep/dearagent',
-			endpoints: ['/health', '/auth/me', '/inboxes', '/webhooks', '/mcp'],
+			endpoints: ['/health', '/dashboard', '/stats', '/stats/daily', '/auth/me', '/inboxes', '/webhooks', '/mcp'],
 		}),
 	);
+	app.get('/dashboard', (c) => {
+		const html = renderDashboard(dashboardSources(c.env, c.req.url));
+		return new Response(html, {
+			headers: {
+				'content-type': 'text/html; charset=UTF-8',
+				'cache-control': 'no-store',
+			},
+		});
+	});
+	const corsPreflight = () => new Response(null, { status: 204, headers: corsHeaders() });
+	app.options('/stats', corsPreflight);
+	app.options('/stats/daily', corsPreflight);
 	app.get('/health', (c) => {
 		try {
 			getConfig(c.env);
@@ -92,6 +105,17 @@ export function createApp() {
 	});
 
 	app.get('/auth/me', (c) => c.json({ ok: true, domains: c.get('config').domains }));
+	app.get('/stats', async (c) => {
+		const res = c.json(await inboxStats(c.env.DB, c.get('config')));
+		for (const [k, v] of Object.entries(corsHeaders())) res.headers.set(k, v);
+		return res;
+	});
+	app.get('/stats/daily', async (c) => {
+		const days = Number(c.req.query('days') ?? 14);
+		const res = c.json(await dailyStats(c.env.DB, Number.isFinite(days) ? days : 14));
+		for (const [k, v] of Object.entries(corsHeaders())) res.headers.set(k, v);
+		return res;
+	});
 
 	app.route('/', inboxRoutes());
 	app.route('/', threadRoutes());

@@ -142,7 +142,13 @@ Bindings (`DB`, `ATTACHMENTS`, `EMAIL`) and the daily cron are pre-declared. To 
 
 ## API
 
-All endpoints except `GET /health` require `Authorization: Bearer <API_KEY>`. Bodies and responses are JSON. Errors look like `{ "error": { "code": "not_found", "message": "Inbox not found" } }`.
+All endpoints except `GET /health` and `GET /dashboard` require `Authorization: Bearer <API_KEY>`. Bodies and responses are JSON except `/dashboard`, which is a dark HTML inbox table. Errors look like `{ "error": { "code": "not_found", "message": "Inbox not found" } }`.
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/dashboard` | Dark operator UI: inboxes, in/out counts, 14-day bar chart. Optional `DASHBOARD_SOURCES` (comma-separated Worker origins) combines several deployments; paste each `API_KEY` on the page (`localStorage`, shared across tabs). |
+| `GET` | `/stats` | `{ domains, inboxes: [{ address, inbound, outbound, last_message_at }], totals }`. CORS enabled for the combined dashboard. |
+| `GET` | `/stats/daily?days=14` | `{ days, buckets: [{ day, inbound, outbound }] }` UTC days, zero-filled. |
 
 Inbox ids are the lowercased address, so URL-encode the `@` if your client insists (`agent%40mail.example.com` works too).
 

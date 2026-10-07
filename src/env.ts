@@ -9,6 +9,8 @@ declare global {
 	interface Env {
 		/** Bearer token for the REST API and MCP endpoint. `wrangler secret put API_KEY`. */
 		API_KEY?: string;
+		/** Optional comma-separated Worker origins shown together on GET /dashboard. */
+		DASHBOARD_SOURCES?: string;
 	}
 }
 
